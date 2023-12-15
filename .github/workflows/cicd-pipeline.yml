@@ -84,71 +84,7 @@ jobs:
       #  name: Database # Artifact name    #    
      #   path: ${{  env.solutionFolder  }}/DiscordNerfWatcher.Database/**/* # Directory containing files to upload#
 
-  deployProduction:
-    name: Deploy in Production
-    runs-on: ubuntu-latest
-    needs: build
-    environment: production
-    if: ${{ (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/release') && github.event_name != 'pull_request' }}
-    steps:
-        - uses: actions/checkout@v3
-        - name: Setup .NET
-          uses: actions/setup-dotnet@v3
-          with:
-            dotnet-version: 7.0.x
-        - name: 'Login via Azure CLI'
-          uses: azure/login@v1
-          with:
-            creds: ${{ secrets.AZURE_CREDENTIALS }}
-        - name: Restore dependencies
-          run: dotnet restore ${{  env.solutionPath  }}
-        - name: Build
-          run: dotnet build ${{  env.solutionPath  }} --configuration Release --no-restore
-    
-        - name: Replace tokens
-          uses: cschleiden/replace-tokens@v1
-          with:
-            tokenPrefix: '${'
-            tokenSuffix: '}$'
-            files: '["**/*.json"]'
-          env:
-            database_hostname: ${{ vars.DATABASE_HOSTNAME }}
-            database_username: ${{ vars.DATABASE_USER  }}
-            database_name: ${{ vars.DATABASE_NAME }}
-            DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
-            DiscordBotToken: ${{ secrets.DiscordBotToken }}
-        
-        - name: 'Connect to Container Registry'
-          uses: azure/docker-login@v1
-          with:
-            login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
-            username: ${{ secrets.REGISTRY_USERNAME }}
-            password: ${{ secrets.REGISTRY_PASSWORD }}
-        - name: 'Build and push docker image'
-          run: |
-            cd ${{ env.solutionFolder }}
-            docker build -f 'DiscordNerfWatcher.Bot/Dockerfile' -t ${{ secrets.REGISTRY_LOGIN_SERVER }}/dnwbot:${{ github.sha }} .
-            docker push ${{ secrets.REGISTRY_LOGIN_SERVER }}/dnwbot:${{ github.sha }}
-
-        - name: Update database
-          run: |
-            cd ${{ env.solutionFolder }}/DiscordNerfWatcher.Database
-            dotnet tool install --global dotnet-ef --version 7.0.*
-            dotnet ef database update --no-build --configuration Release
-          env:
-            ASPNETCORE_ENVIRONMENT: Production
-
-        - name: 'Deploy to Azure Container Instances'
-          uses: 'azure/aci-deploy@v1'
-          with:
-            resource-group: ${{ secrets.RESOURCE_GROUP }}
-            dns-name-label: ${{ secrets.RESOURCE_GROUP }}${{ github.run_number }}
-            image: ${{ secrets.REGISTRY_LOGIN_SERVER }}/dnwbot:${{ github.sha }}
-            registry-login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
-            registry-username: ${{ secrets.REGISTRY_USERNAME }}
-            registry-password: ${{ secrets.REGISTRY_PASSWORD }}
-            name: aci-dnwbot
-            location: 'east us'
+  
 
 
       
